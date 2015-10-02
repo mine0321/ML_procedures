@@ -5,13 +5,15 @@ import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline
 
 def acceTocsv(filename, base_time, sync_error, experiment_time):
-    """
-    base_time : 時刻合わせに利用したセンサのbasetime
-    sync_error : 実験開始時刻を0とするための時刻合わせ
-    experiment_time : 実験時間を記述
-    """
 
-    f = open('%s.txt'%(filename))
+    """ 加速度txtデータをDataFrameに変換し、csvとして出力 """
+    # filename : 変換したいtxtデータのファイル名
+    # base_time : 時刻合わせに利用したセンサのbasetime
+    # sync_error : 実験開始時刻を0とするための時刻合わせ
+    # experiment_time : 実験時間を記述
+
+
+    f = open('%s.txt'%(filename)) # %Sというテキストファイルを開ける
     lines = f.readlines() # 1行毎にファイル終端まで全て読む(改行文字も含まれる)
     f.close()
     data = pd.DataFrame({'time':[],'x':[],'y':[],'z':[]})
@@ -20,8 +22,9 @@ def acceTocsv(filename, base_time, sync_error, experiment_time):
     data = []
 
     for line in lines:
-        line = [datum.replace('$ACC ', '').replace(' ', ',') for datum in line.split('\n') if '$ACC' in datum]
-        line.append('')
+        line = [datum.replace('$ACC ', '').replace(' ', ',') for datum in line.split('\n') if '$ACC' in datum] 
+        # リストの中の改行を区切りとして、$ACCを''に、' 'を','に置き換える
+        line.append('')# ''を追加
         if not line == ['']:
             line = map(float, line[0].split(','))
             line[0] = line[0] - base_time - sync_error
