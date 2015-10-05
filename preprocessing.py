@@ -26,22 +26,30 @@ def acceTocsv(filename, base_time, sync_error, experiment_time):
         # リストの中の改行を区切りとして、$ACCを''に、' 'を','に置き換える
         line.append('')# ''を追加
         if not line == ['']:
-            line = map(float, line[0].split(','))
-            line[0] = line[0] - base_time - sync_error
+            line = map(float, line[0].split(','))# ,を区切りとしたlineリストの最初の値に浮動小数点表示にする
+            line[0] = line[0] - base_time - sync_error# timeの計算
             if 0 < line[0] < experiment_time:
-                data.append(line)
-    columns=['time', 'x', 'y', 'z']
+                data.append(line)# data[]にlineをいれて数値データにする
+    columns=['time', 'x', 'y', 'z']# columnsで表にする
     data = pd.DataFrame(data, columns=columns)
     columns.remove('time')
 
     for col in columns:
-        data[col] = data[col] - data[col].mean()
+        data[col] = data[col] - data[col].mean()# センサの傾きの調整
 
-    data.to_csv('%s.csv'%(filename))
+    data.to_csv('%s.csv'%(filename))# csvファイルで書き出し
     return data
 
 def rriTocsv(filename, sync_error, experiment_time, bpm=0,
     sumpling_time=1, ver_old=0):
+
+　　""" 心拍txtデータをDataFrameに変換し、csvとして出力 """
+    # filename : 変換したいtxtデータのファイル名
+    # sync_error : 実験開始時刻を0とするための時刻合わせ
+    # experiment_time : 実験時間を記述
+    # bpm :
+    # sumpling_time : 
+    # ver_old :
 
     f = open('%s.txt'%(filename))
     lines = f.readlines()  # 1行毎にファイル終端まで全て読む(改行文字も含まれる)
