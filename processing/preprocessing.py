@@ -14,7 +14,7 @@ def rolling_average(acce_df, degree=7):
     acce_df = pd.rolling_mean(acce_df, degree, center=True).dropna()
     return acce_df
 
-def calc_IEMG(emg_data, label_df):
+def calc_IEMG(emg_data, label_df,degree=100):
     """
     筋電データの積分値を整流後に計算
 
@@ -26,9 +26,12 @@ def calc_IEMG(emg_data, label_df):
     * 評価値として平均振幅を使用したほうがいいかも
     """
 
-    samples = sampling_labeled_data(emg_data, label_df)
-    IEMG_list = [[sample.time.mean(), sum(sample.EMG1.abs()),
-                            sum(sample.EMG2.abs())] for sample in samples]
+    import processing.load_data as load
+
+    emg_data_ave = rolling_average(emg_data.abs(),degree=degree)
+    samples = load.sampling_labeled_data(emg_data_ave, label_df)
+    IEMG_list = [[sample.time.mean(), sum(sample.EMG1),
+                            sum(sample.EMG2)] for sample in samples]
     return pd.DataFrame(IEMG_list, columns=['time', 'IEMG1', 'IEMG2'])
 
 def pairwise_dtw(samples, axis):
