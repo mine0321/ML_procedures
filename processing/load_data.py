@@ -6,12 +6,13 @@ from scipy.interpolate import InterpolatedUnivariateSpline
 
 def acceTocsv(filename, base_time, sync_error, experiment_time):
 
-    """ 加速度txtデータをDataFrameに変換し、csvとして出力 """
+    """ 
+    加速度txtデータをDataFrameに変換し、csvとして出力
     # filename : 変換したいtxtデータのファイル名
     # base_time : 時刻合わせに利用したセンサのbasetime
     # sync_error : 実験開始時刻を0とするための時刻合わせ
     # experiment_time : 実験時間を記述
-
+    """
 
     f = open('%s.txt'%(filename)) # %Sというテキストファイルを開ける
     lines = f.readlines() # 1行毎にファイル終端まで全て読む(改行文字も含まれる)
@@ -43,13 +44,17 @@ def acceTocsv(filename, base_time, sync_error, experiment_time):
 def rriTocsv(filename, sync_error, experiment_time, bpm=0,
     sumpling_time=1, ver_old=0):
 
-　　""" 心拍txtデータをDataFrameに変換し、csvとして出力 """
+    """
+    心拍txtデータをDataFrameに変換し、csvとして出力
+
     # filename : 変換したいtxtデータのファイル名
     # sync_error : 実験開始時刻を0とするための時刻合わせ
     # experiment_time : 実験時間を記述
     # bpm :
     # sumpling_time : 
     # ver_old :
+
+    """
 
     f = open('%s.txt'%(filename))
     lines = f.readlines()  # 1行毎にファイル終端まで全て読む(改行文字も含まれる)
