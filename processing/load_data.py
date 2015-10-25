@@ -8,10 +8,11 @@ def acceTocsv(filename, base_time, sync_error, experiment_time):
 
     """ 
     加速度txtデータをDataFrameに変換し、csvとして出力
-    # filename : 変換したいtxtデータのファイル名
-    # base_time : 時刻合わせに利用したセンサのbasetime
-    # sync_error : 実験開始時刻を0とするための時刻合わせ
-    # experiment_time : 実験時間を記述
+
+    filename : 変換したいtxtデータのファイル名
+    base_time : 時刻合わせに利用したセンサのbasetime
+    sync_error : 実験開始時刻を0とするための時刻合わせ
+    experiment_time : 実験時間を記述
     """
 
     f = open('%s.txt'%(filename)) # %Sというテキストファイルを開ける
@@ -41,18 +42,18 @@ def acceTocsv(filename, base_time, sync_error, experiment_time):
     data.to_csv('%s.csv'%(filename))# csvファイルで書き出し
     return data
 
-def rriTocsv(filename, sync_error, experiment_time, bpm=0,
-    sumpling_time=1, ver_old=0):
+def rriTocsv(filename, sync_error, experiment_time, bpm=False,
+    sumpling_time=1, ver_old=False):
 
     """
     心拍txtデータをDataFrameに変換し、csvとして出力
 
-    # filename : 変換したいtxtデータのファイル名
-    # sync_error : 実験開始時刻を0とするための時刻合わせ
-    # experiment_time : 実験時間を記述
-    # bpm :
-    # sumpling_time : 
-    # ver_old :
+    filename : 変換したいtxtデータのファイル名
+    sync_error : 実験開始時刻を0とするための時刻合わせ
+    experiment_time : 実験時間を記述
+    bpm : if True, bpm. if True, RRI
+    sumpling_time : 補間時のresampling timeの指定
+    ver_old : 2014年購入の心拍系の場合Trueにする
 
     """
 
@@ -71,12 +72,11 @@ def rriTocsv(filename, sync_error, experiment_time, bpm=0,
         line = [datum.replace('\r', '') for datum in line.split('\n')]
         line = line[0].split(' ')
 
-        if ver_old == 1:
+        if ver_old:
             time = line[0].split(':')
             line[0] = float(time[0])*60*60 + float(time[1])*60 + float(time[2]) - sync_error
             line[1] = float(line[1])
-
-        elif ver_old == 0:
+        else:
             line[1] = float(line[1]) * 1000
             line[0] = float(line[0]) - sync_error
 
@@ -93,16 +93,15 @@ def rriTocsv(filename, sync_error, experiment_time, bpm=0,
     data = pd.DataFrame(data, columns=columns)
 
     # 以下で取り除いたデータをスプライン補間によって補う．
-    # リサンプリングタイムは1秒
+    # リサンプリングタイムはsumpling_time秒
 
     ius = InterpolatedUnivariateSpline(data.time, data.RRI)
     xn  = np.arange(int(data.head(1).time), data.tail(1).time, sumpling_time)
     yn  = ius(xn)
 
-    if bpm == 0:
+    if bpm:
         data = pd.DataFrame({'time':pd.Series(xn),'RRI':pd.Series(yn)})
-
-    elif bpm == 1:
+    else:
         yn = 60000 / yn
         data = pd.DataFrame({'time':pd.Series(xn),'bpm':pd.Series(yn)})
 
@@ -111,6 +110,12 @@ def rriTocsv(filename, sync_error, experiment_time, bpm=0,
     return data
 
 def emgTocsv(filename, sync_error):
+    """
+    筋電csvデータをDataFrameに変換し、csvとして出力
+
+    # filename : 変換したいcsvデータのファイル名
+    # sync_error : 実験開始時刻を0とするための時刻合わせ
+    """
     columns = ['time', 'x', 'y', 'z', 'EMG1', 'EMG2', 'IEMG1', 'IEMG2']
     df = pd.read_csv(file('%s.csv'%(filename)), skiprows=10,
         names=columns)
@@ -123,14 +128,28 @@ def emgTocsv(filename, sync_error):
     df.to_csv('%s_A.csv'%(filename))
     return df
 
-def get_label_df(push_label,sync_error=0):
+def get_label_df(push_label,sync_error=0,min_time=0.5,max_time=1.5):
+    """
+    漕ぎラベルcsvをDataFrameへ変換
+
+    push_label : csvデータのファイル名(漕ぎ開始を'StartTime'，漕ぎ終了を'FinishTime')
+    sync_error : 実験開始時刻を0とするための時刻合わせ
+    min_time : 短すぎる漕ぎをフィルタリング
+    max_time : 長すぎる漕ぎをフィルタリング
+    """
     df = pd.read_csv(file('%s.csv'%(push_label)), header=0)
-    df = df[(0.5 <= df['FinishTime'] - df['StartTime']) & (df['FinishTime'] - df['StartTime'] <= 1.5)]
+    df = df[(min_time <= df['FinishTime'] - df['StartTime']) & (df['FinishTime'] - df['StartTime'] <= max_time)]
     df.StartTime = df.StartTime - sync_error
     df.FinishTime = df.FinishTime - sync_error
     return df
 
 def sampling_labeled_data(data, label_df):
+    """
+    計測データからラベル時間毎に切り取ったデータを作成
+
+    data : 計測データ
+    label_df : ラベルデータ(pandas.DataFrame)
+    """
     samples = []
     for ind, label in label_df.iterrows():
         samples.append(data_between(data, label.StartTime, label.FinishTime))
