@@ -155,11 +155,22 @@ def sampling_labeled_data(data, label_df):
         samples.append(data_between(data, label.StartTime, label.FinishTime))
     return samples
 
-def data_between(data, start, stop):
-    return data[(start <= data.time) & (data.time < stop)]
+def data_between(data, start, stop, column='time'):
+    """
+    startとstopの間のデータだけスライスする
+    
+    data : スライスしたいデータ(pandas.DataFrame)
+    start : スライスの始点
+    stop : スライスの終点
+    column : dataのスライスするカラム
+    """
+    return data[(start <= data[column]) & (data[column] < stop)]
 
 def select_file(filename, sync_error, experiment_time,
-    base_time=0, bpm=0, sumpling_time=1, ver_old=0):
+    base_time=0, bpm=False, sumpling_time=1, ver_old=False):
+    """
+    filenameによってメソッドを振り分ける
+    """
     if 'acce' in filename:
         df = acceTocsv(filename, base_time, sync_error, experiment_time)
     elif 'RRI' in filename:

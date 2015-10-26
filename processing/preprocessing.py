@@ -37,6 +37,9 @@ def calc_IEMG(emg_data, label_df,degree=100):
 def pairwise_dtw(samples, axis):
     """
     DTWによるサンプルのペアワイズ距離を取る
+
+    samples : pandas.DataFrameのサンプル
+    axis : columnの軸を指定
     """
     import mlpy
     from scipy.spatial.distance import squareform
