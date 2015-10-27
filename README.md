@@ -1,4 +1,4 @@
-method
+ai_procedure
 ===
 
 機械学習(DeepLearningも含む)を実行する際のprocedureやmethodの管理
