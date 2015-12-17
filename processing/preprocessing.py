@@ -3,13 +3,13 @@
 import pandas as pd
 import numpy as np
 
-def rolling_average(acce_df, degree=7):
+def rolling_average(acce_df, degree=10):
     """
     入力された加速度データの移動平均をとって出力
     移動平均の計算の際には前後5サンプルをデフォルトで利用する
     （degreeの値を変更することで変更可能）
 
-    デフォルトを5サンプルにしているのは経験則
+    デフォルトを10サンプルにしているのは経験則
     """
     acce_df = pd.rolling_mean(acce_df, degree, center=True).dropna()
     return acce_df
@@ -37,6 +37,9 @@ def calc_IEMG(emg_data, label_df,degree=100):
 def pairwise_dtw(samples, axis):
     """
     DTWによるサンプルのペアワイズ距離を取る
+
+    samples : pandas.DataFrameのサンプル
+    axis : columnの軸を指定
     """
     import mlpy
     from scipy.spatial.distance import squareform
