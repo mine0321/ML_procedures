@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline
 
-def acceTocsv(filename, base_time, sync_error, experiment_time):
+def acceTocsv(filename, base_time, sync_error, experiment_time, ver_old):
 
     """ 
     加速度txtデータをDataFrameに変換し、csvとして出力
@@ -14,33 +14,39 @@ def acceTocsv(filename, base_time, sync_error, experiment_time):
     sync_error : 実験開始時刻を0とするための時刻合わせ
     experiment_time : 実験時間を記述
     """
+    if ver_old:
+        f = open('%s.txt'%(filename)) # %Sというテキストファイルを開ける
+        lines = f.readlines() # 1行毎にファイル終端まで全て読む(改行文字も含まれる)
+        f.close()
+        data = pd.DataFrame({'time':[],'x':[],'y':[],'z':[]})
+        # lines: リスト。要素は1行の文字列データ
 
-    f = open('%s.txt'%(filename)) # %Sというテキストファイルを開ける
-    lines = f.readlines() # 1行毎にファイル終端まで全て読む(改行文字も含まれる)
-    f.close()
-    data = pd.DataFrame({'time':[],'x':[],'y':[],'z':[]})
-    # lines: リスト。要素は1行の文字列データ
+        data = []
 
-    data = []
+        for line in lines:
+            line = [datum.replace('$ACC ', '').replace(' ', ',') for datum in line.split('\n') if '$ACC' in datum] 
+            # リストの中の改行を区切りとして、$ACCを''に、' 'を','に置き換える
+            line.append('')# ''を追加
+            if not line == ['']:
+                line = map(float, line[0].split(','))# ,を区切りとしたlineリストの最初の値に浮動小数点表示にする
+                line[0] = line[0] - base_time - sync_error# timeの計算
+                if 0 < line[0] < experiment_time:
+                    data.append(line)# data[]にlineをいれて数値データにする
+        columns=['time', 'x', 'y', 'z']# columnsで表にする
+        data = pd.DataFrame(data, columns=columns)
+        columns.remove('time')
 
-    for line in lines:
-        line = [datum.replace('$ACC ', '').replace(' ', ',') for datum in line.split('\n') if '$ACC' in datum] 
-        # リストの中の改行を区切りとして、$ACCを''に、' 'を','に置き換える
-        line.append('')# ''を追加
-        if not line == ['']:
-            line = map(float, line[0].split(','))# ,を区切りとしたlineリストの最初の値に浮動小数点表示にする
-            line[0] = line[0] - base_time - sync_error# timeの計算
-            if 0 < line[0] < experiment_time:
-                data.append(line)# data[]にlineをいれて数値データにする
-    columns=['time', 'x', 'y', 'z']# columnsで表にする
-    data = pd.DataFrame(data, columns=columns)
-    columns.remove('time')
+        for col in columns:
+            data[col] = data[col] - data[col].mean()# センサの傾きの調整
 
-    for col in columns:
-        data[col] = data[col] - data[col].mean()# センサの傾きの調整
-
-    data.to_csv('%s.csv'%(filename))# csvファイルで書き出し
-    return data
+        data.to_csv('%s.csv'%(filename))# csvファイルで書き出し
+        return data
+    else:
+        columns = ['time', 'gyro_x', 'gyro_y', 'gyro_z', 'acce_x', 'acce_y', 'acce_z', 'lat', 'long']
+        df = pd.read_csv(file('%s.csv'%(filename)), names=columns)
+        df.time = df.time - df.time[0] - sync_error
+        df = df[(df.time >= 0 )& (experiment_time>=df.time)]
+        return df
 
 def rriTocsv(filename, sync_error, experiment_time, bpm=False,
     sumpling_time=1, ver_old=False):
@@ -172,7 +178,7 @@ def select_file(filename, sync_error, experiment_time,
     filenameによってメソッドを振り分ける
     """
     if 'acce' in filename:
-        df = acceTocsv(filename, base_time, sync_error, experiment_time)
+        df = acceTocsv(filename, base_time, sync_error, experiment_time, ver_old)
     elif 'RRI' in filename:
         df = rriTocsv(filename, sync_error, experiment_time, bpm, sumpling_time, ver_old)
     elif 'muscle' in filename:
