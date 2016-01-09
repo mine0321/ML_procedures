@@ -31,4 +31,4 @@ def plot_label(label_df, y_interval, ax=plt):
     """
     [y_start, y_stop] = y_interval
     for ind, label in label_df.iterrows():
-        surround_by_box(label.StartTime, label.FinishTime, y_start, y_stop, ax)
+        surround_by_box(label.starttime, label.finishtime, y_start, y_stop, ax)
