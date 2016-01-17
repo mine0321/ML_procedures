@@ -106,11 +106,10 @@ def rriTocsv(filename, sync_error, experiment_time, bpm=False,
     yn  = ius(xn)
 
     if bpm:
-        data = pd.DataFrame({'time':pd.Series(xn),'RRI':pd.Series(yn)})
-    else:
         yn = 60000 / yn
         data = pd.DataFrame({'time':pd.Series(xn),'bpm':pd.Series(yn)})
-
+    else:
+        data = pd.DataFrame({'time':pd.Series(xn),'RRI':pd.Series(yn)})
     data.to_csv('%s.csv'%(filename))
 
     return data
@@ -144,9 +143,9 @@ def get_label_df(push_label,sync_error=0,min_time=0.5,max_time=1.5):
     max_time : 長すぎる漕ぎをフィルタリング
     """
     df = pd.read_csv(file('%s.csv'%(push_label)), header=0)
-    df = df[(min_time <= df['FinishTime'] - df['StartTime']) & (df['FinishTime'] - df['StartTime'] <= max_time)]
-    df.StartTime = df.StartTime - sync_error
-    df.FinishTime = df.FinishTime - sync_error
+    df = df[(min_time <= df['finishtime'] - df['starttime']) & (df['finishtime'] - df['starttime'] <= max_time)]
+    df.starttime = df.starttime - sync_error
+    df.finishtime = df.finishtime - sync_error
     return df
 
 def sampling_labeled_data(data, label_df):
@@ -158,7 +157,7 @@ def sampling_labeled_data(data, label_df):
     """
     samples = []
     for ind, label in label_df.iterrows():
-        samples.append(data_between(data, label.StartTime, label.FinishTime))
+        samples.append(data_between(data, float(label.starttime), float(label.finishtime)))
     return samples
 
 def data_between(data, start, stop, column='time'):
