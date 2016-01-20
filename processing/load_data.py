@@ -3,6 +3,7 @@
 import pandas as pd
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline
+import processing.preprocessing as pre
 
 def acceTocsv(filename, base_time, sync_error, experiment_time, ver_old):
 
@@ -49,7 +50,7 @@ def acceTocsv(filename, base_time, sync_error, experiment_time, ver_old):
         return df
 
 def rriTocsv(filename, sync_error, experiment_time, bpm=False,
-    sumpling_time=1, ver_old=False):
+    sumpling_time=1, ver_old=False, degree=40):
 
     """
     心拍txtデータをDataFrameに変換し、csvとして出力
@@ -97,6 +98,8 @@ def rriTocsv(filename, sync_error, experiment_time, bpm=False,
 
     columns = ['time', 'RRI']
     data = pd.DataFrame(data, columns=columns)
+
+    data = pre.rolling_average(data, degree)
 
     # 以下で取り除いたデータをスプライン補間によって補う．
     # リサンプリングタイムはsumpling_time秒
