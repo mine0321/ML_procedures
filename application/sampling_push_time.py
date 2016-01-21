@@ -30,6 +30,9 @@ class Sampling(object):
         )
         self.plot_push(push_df, acce_df, emg_df, self.acce_col, self.emg_col)
 
+    def output_push(self, push_df, folder_name):
+        push_df.to_csv('%s/data/%s_push.csv' % (folder_name, folder_name))
+
     def plot_push(self, push_df, acce_df, emg_df, acce_col, emg_col):
         fig = plt.figure(figsize=[15, 14])
         ax1 = fig.add_subplot(121)
