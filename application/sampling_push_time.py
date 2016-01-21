@@ -3,6 +3,7 @@
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
 
 
 class Sampling(object):
@@ -28,27 +29,30 @@ class Sampling(object):
             self.max_first_push_time, self.min_last_push_time,
             self.min_sample_time, self.max_sample_time, finish, self.timing
         )
-        self.plot_push(push_df, acce_df, emg_df, self.acce_col, self.emg_col)
+        self.output_push(push_df, self.folder_name)
+        self.plot_push(
+            push_df, acce_df, emg_df, self.acce_col, self.emg_col, finish)
 
     def output_push(self, push_df, folder_name):
         push_df.to_csv('%s/data/%s_push.csv' % (folder_name, folder_name))
 
-    def plot_push(self, push_df, acce_df, emg_df, acce_col, emg_col):
-        fig = plt.figure(figsize=[15, 14])
-        ax1 = fig.add_subplot(121)
-        ax2 = fig.add_subplot(122)
+    def plot_push(self, push_df, acce_df, emg_df, acce_col, emg_col, finish):
+        fig = plt.figure(figsize=[13, 7])
+        ax1 = fig.add_subplot(211)
+        ax2 = fig.add_subplot(212)
         x_axis = 'time'
+        xlim = [0, finish]
 
         value = 0.05
         ylim = [-0.2, 0.2]
-        interval = ylim + [value, -value]
-        acce_df.plot(x=x_axis, y=acce_col, ylim=ylim, ax=ax1)
+        interval = np.array(ylim) + np.array([value, -value])
+        acce_df.plot(x=x_axis, y=acce_col, ylim=ylim, xlim=xlim, ax=ax1)
         self.plot_label(push_df, interval, ax=ax1)
 
         value = 50
         ylim = [-50, 250]
-        emg_df.plot(x=x_axis, y=emg_col, ylim=ylim, ax=ax2)
-        interval = ylim + [value, -value]
+        emg_df.plot(x=x_axis, y=emg_col, ylim=ylim, xlim=xlim, ax=ax2)
+        interval = np.array(ylim) + np.array([value, -value])
         self.plot_label(push_df, interval, ax=ax2)
 
         plt.show()
@@ -69,7 +73,7 @@ class Sampling(object):
         pushs = self.find_pushs_acce(pushs, timing, acce_df, self.acce_col)
 
         push_df = self.convert_df(pushs)
-        push_df = self.fix_df(push_df)
+        push_df = self.fix_df(push_df, min_sample_time, max_sample_time)
         return push_df
 
     def fix_df(self, df, min_time, max_time):
@@ -150,6 +154,7 @@ class Sampling(object):
             folder_name, folder_name, sensor_name)), names=columns)
         df.time = df.time - df.time[0] - error_df[sensor_name].values
         df = self.sub_data(df, sensor_name, sub_cols, base_df)
+        df = self.rolling_average(df, degree=20)
         return df
 
     def load_emg(self, folder_name, error_df, base_df):
@@ -163,6 +168,8 @@ class Sampling(object):
             folder_name, folder_name)), skiprows=10, names=columns)
         df.time = df.time / 1000 - error_df.emg.values
         df = self.sub_data(df, 'emg', sub_cols, base_df)
+        df = self.sum_emgs(df)
+        df = self.rolling_average(df, degree=200)
         return df
 
     def load_timesync(self, folder_name):
@@ -211,6 +218,17 @@ class Sampling(object):
                 label.starttime, label.finishtime,
                 y_start, y_stop, ax, color=color
             )
+
+    def rolling_average(self, df, degree=10):
+        """
+    入力された加速度データの移動平均をとって出力
+    移動平均の計算の際には前後5サンプルをデフォルトで利用する
+    （degreeの値を変更することで変更可能）
+
+    デフォルトを10サンプルにしているのは経験則
+        """
+        df = pd.rolling_mean(df, degree, center=True)
+        return df
 
 if __name__ == '__main__':
     import argparse
