@@ -21,7 +21,7 @@ def surround_by_box(x_start, x_stop, y_start, y_stop, ax=plt, color='red'):
     ax.plot([interval1[0], interval1[1]], [y_start, y_start], color=color)  # Bottom
     ax.plot([interval1[0], interval1[1]], [y_stop, y_stop], color=color)  # Top
 
-def plot_label(label_df, y_interval, ax=plt):
+def plot_label(label_df, y_interval, ax=plt, color='red'):
     """
     データ波形に漕ぎ時間を四角形囲った波形をプロット
 
@@ -31,4 +31,4 @@ def plot_label(label_df, y_interval, ax=plt):
     """
     [y_start, y_stop] = y_interval
     for ind, label in label_df.iterrows():
-        surround_by_box(label.starttime, label.finishtime, y_start, y_stop, ax)
+        surround_by_box(label.starttime, label.finishtime, y_start, y_stop, ax, color=color)
