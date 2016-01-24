@@ -34,7 +34,8 @@ class Sampling(object):
             push_df, acce_df, emg_df, self.acce_col, self.emg_col, finish)
 
     def output_push(self, push_df, folder_name):
-        push_df.to_csv('%s/data/%s_push.csv' % (folder_name, folder_name))
+        push_df.to_csv(
+            '%s/data/%s_push.csv' % (folder_name, folder_name), index=None)
 
     def plot_push(self, push_df, acce_df, emg_df, acce_col, emg_col, finish):
         fig = plt.figure(figsize=[13, 7])

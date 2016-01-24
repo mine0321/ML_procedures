@@ -5,9 +5,10 @@ import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline
 import processing.preprocessing as pre
 
+
 def acceTocsv(filename, base_time, sync_error, experiment_time, ver_old):
 
-    """ 
+    """
     加速度txtデータをDataFrameに変換し、csvとして出力
 
     filename : 変換したいtxtデータのファイル名
@@ -16,41 +17,47 @@ def acceTocsv(filename, base_time, sync_error, experiment_time, ver_old):
     experiment_time : 実験時間を記述
     """
     if ver_old:
-        f = open('%s.txt'%(filename)) # %Sというテキストファイルを開ける
-        lines = f.readlines() # 1行毎にファイル終端まで全て読む(改行文字も含まれる)
+        f = open('%s.txt' % (filename))  # %Sというテキストファイルを開ける
+        lines = f.readlines()  # 1行毎にファイル終端まで全て読む(改行文字も含まれる)
         f.close()
-        data = pd.DataFrame({'time':[],'x':[],'y':[],'z':[]})
+        data = pd.DataFrame({'time': [], 'x': [], 'y': [], 'z': []})
         # lines: リスト。要素は1行の文字列データ
 
         data = []
 
         for line in lines:
-            line = [datum.replace('$ACC ', '').replace(' ', ',') for datum in line.split('\n') if '$ACC' in datum] 
+            line = [datum.replace('$ACC ', '').replace(
+                ' ', ',') for datum in line.split('\n') if '$ACC' in datum]
             # リストの中の改行を区切りとして、$ACCを''に、' 'を','に置き換える
-            line.append('')# ''を追加
+            line.append('')  # ''を追加
             if not line == ['']:
-                line = map(float, line[0].split(','))# ,を区切りとしたlineリストの最初の値に浮動小数点表示にする
-                line[0] = line[0] - base_time - sync_error# timeの計算
+                # ,を区切りとしたlineリストの最初の値に浮動小数点表示にする
+                line = map(float, line[0].split(','))
+                line[0] = line[0] - base_time - sync_error  # timeの計算
                 if 0 < line[0] < experiment_time:
-                    data.append(line)# data[]にlineをいれて数値データにする
-        columns=['time', 'x', 'y', 'z']# columnsで表にする
+                    data.append(line)  # data[]にlineをいれて数値データにする
+        columns = ['time', 'x', 'y', 'z']  # columnsで表にする
         data = pd.DataFrame(data, columns=columns)
         columns.remove('time')
 
         for col in columns:
-            data[col] = data[col] - data[col].mean()# センサの傾きの調整
+            data[col] = data[col] - data[col].mean()  # センサの傾きの調整
 
-        data.to_csv('%s.csv'%(filename))# csvファイルで書き出し
+        data.to_csv('%s.csv' % (filename))  # csvファイルで書き出し
         return data
     else:
-        columns = ['time', 'gyro_x', 'gyro_y', 'gyro_z', 'acce_x', 'acce_y', 'acce_z', 'lat', 'long']
-        df = pd.read_csv(file('%s.csv'%(filename)), names=columns)
+        columns = [
+            'time', 'gyro_x', 'gyro_y', 'gyro_z',
+            'acce_x', 'acce_y', 'acce_z', 'lat', 'long']
+        df = pd.read_csv(file('%s.csv' % (filename)), names=columns)
         df.time = df.time - df.time[0] - sync_error
-        df = df[(df.time >= 0 )& (experiment_time>=df.time)]
+        df = df[(df.time >= 0) & (experiment_time >= df.time)]
         return df
 
-def rriTocsv(filename, sync_error, experiment_time, bpm=False,
-    sumpling_time=1, ver_old=False, degree=40):
+
+def rriTocsv(
+        filename, sync_error, experiment_time, bpm=False,
+        sumpling_time=1, ver_old=False, degree=40):
 
     """
     心拍txtデータをDataFrameに変換し、csvとして出力
@@ -64,7 +71,7 @@ def rriTocsv(filename, sync_error, experiment_time, bpm=False,
 
     """
 
-    f = open('%s.txt'%(filename))
+    f = open('%s.txt' % (filename))
     lines = f.readlines()  # 1行毎にファイル終端まで全て読む(改行文字も含まれる)
     f.close()
 
@@ -81,15 +88,17 @@ def rriTocsv(filename, sync_error, experiment_time, bpm=False,
 
         if ver_old:
             time = line[0].split(':')
-            line[0] = float(time[0])*60*60 + float(time[1])*60 + float(time[2]) - sync_error
+            line[0] = float(time[0]) * 60 * 60 + float(time[1]) * 60 + float(
+                time[2]) - sync_error
             line[1] = float(line[1])
         else:
             line[1] = float(line[1]) * 1000
             line[0] = float(line[0]) - sync_error
 
         if 0 <= line[0] <= experiment_time:
-            for j,pre_rri in enumerate(rris):
-                if pre_rri/min_rate > line[1] or line[1] > pre_rri*max_rate:
+            for j, pre_rri in enumerate(rris):
+                if (pre_rri / min_rate > line[1]) or (
+                        line[1] > pre_rri * max_rate):
                     break
                 elif j == 2:
                     data.append(line)
@@ -105,17 +114,18 @@ def rriTocsv(filename, sync_error, experiment_time, bpm=False,
     # リサンプリングタイムはsumpling_time秒
 
     ius = InterpolatedUnivariateSpline(data.time, data.RRI)
-    xn  = np.arange(int(data.head(1).time), data.tail(1).time, sumpling_time)
-    yn  = ius(xn)
+    xn = np.arange(int(data.head(1).time), data.tail(1).time, sumpling_time)
+    yn = ius(xn)
 
     if bpm:
         yn = 60000 / yn
-        data = pd.DataFrame({'time':pd.Series(xn),'bpm':pd.Series(yn)})
+        data = pd.DataFrame({'time': pd.Series(xn), 'bpm': pd.Series(yn)})
     else:
-        data = pd.DataFrame({'time':pd.Series(xn),'RRI':pd.Series(yn)})
-    data.to_csv('%s.csv'%(filename))
+        data = pd.DataFrame({'time': pd.Series(xn), 'RRI': pd.Series(yn)})
+    data.to_csv('%s.csv' % (filename))
 
     return data
+
 
 def emgTocsv(filename, sync_error):
     """
@@ -125,18 +135,18 @@ def emgTocsv(filename, sync_error):
     # sync_error : 実験開始時刻を0とするための時刻合わせ
     """
     columns = ['time', 'x', 'y', 'z', 'EMG1', 'EMG2', 'IEMG1', 'IEMG2']
-    df = pd.read_csv(file('%s.csv'%(filename)), skiprows=10,
-        names=columns)
-    df['time'] = df['time']/1000 - sync_error
+    df = pd.read_csv(file('%s.csv' % (filename)), skiprows=10, names=columns)
+    df['time'] = df['time'] / 1000 - sync_error
 
     columns.remove('time')
 
     for col in columns:
         df[col] = df[col] - df[col].mean()
-    df.to_csv('%s_A.csv'%(filename))
+    df.to_csv('%s_A.csv' % (filename))
     return df
 
-def get_label_df(push_label,sync_error=0,min_time=0.5,max_time=1.5):
+
+def get_label_df(push_label, sync_error=0, min_time=0.5, max_time=1.5):
     """
     漕ぎラベルcsvをDataFrameへ変換
 
@@ -145,11 +155,13 @@ def get_label_df(push_label,sync_error=0,min_time=0.5,max_time=1.5):
     min_time : 短すぎる漕ぎをフィルタリング
     max_time : 長すぎる漕ぎをフィルタリング
     """
-    df = pd.read_csv(file('%s.csv'%(push_label)), header=0)
-    df = df[(min_time <= df['finishtime'] - df['starttime']) & (df['finishtime'] - df['starttime'] <= max_time)]
+    df = pd.read_csv(file('%s.csv' % (push_label)), header=0)
+    df = df[(min_time <= df['finishtime'] - df['starttime']) & (
+        df['finishtime'] - df['starttime'] <= max_time)]
     df.starttime = df.starttime - sync_error
     df.finishtime = df.finishtime - sync_error
     return df
+
 
 def sampling_labeled_data(data, label_df):
     """
@@ -160,13 +172,15 @@ def sampling_labeled_data(data, label_df):
     """
     samples = []
     for ind, label in label_df.iterrows():
-        samples.append(data_between(data, float(label.starttime), float(label.finishtime)))
+        samples.append(data_between(
+            data, float(label.starttime), float(label.finishtime)))
     return samples
+
 
 def data_between(data, start, stop, column='time'):
     """
     startとstopの間のデータだけスライスする
-    
+
     data : スライスしたいデータ(pandas.DataFrame)
     start : スライスの始点
     stop : スライスの終点
@@ -174,15 +188,19 @@ def data_between(data, start, stop, column='time'):
     """
     return data[(start <= data[column]) & (data[column] < stop)]
 
-def select_file(filename, sync_error, experiment_time,
-    base_time=0, bpm=False, sumpling_time=1, ver_old=False):
+
+def select_file(
+    filename, sync_error, experiment_time,
+        base_time=0, bpm=False, sumpling_time=1, ver_old=False):
     """
     filenameによってメソッドを振り分ける
     """
     if 'acce' in filename:
-        df = acceTocsv(filename, base_time, sync_error, experiment_time, ver_old)
+        df = acceTocsv(
+            filename, base_time, sync_error, experiment_time, ver_old)
     elif 'RRI' in filename:
-        df = rriTocsv(filename, sync_error, experiment_time, bpm, sumpling_time, ver_old)
+        df = rriTocsv(
+            filename, sync_error, experiment_time, bpm, sumpling_time, ver_old)
     elif 'muscle' in filename:
         df = emgTocsv(filename, sync_error)
     return df
