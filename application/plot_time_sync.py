@@ -6,20 +6,27 @@ import pandas as pd
 
 
 class AllPlotters(object):
-    def __init__(self, folder_name, y_axis, xlim, ylim, emg):
+    def __init__(self, folder_name, y_axis, xlim, ylim, emg, check):
         self.folder_name = folder_name
         self.y_axis = y_axis
         self.xlim = xlim
         self.ylim = ylim
         self.emg = emg
+        self.check = check
 
     def acce_plot(self):
-        error_df = self.load_timesync(self.folder_name)
+        if self.check:
+            error_df = self.load_timesync(self.folder_name)
+        else:
+            error_df = None
         dfs = self.load_acces(self.folder_name, error_df)
         self.plot_acce_dfs(dfs, self.y_axis, self.xlim, self.ylim)
 
     def sync_of_emg_plot(self):
-        error_df = self.load_timesync(self.folder_name)
+        if self.check:
+            error_df = self.load_timesync(self.folder_name)
+        else:
+            error_df = None
         dfs = self.load_one_acce(self.folder_name, error_df)
         dfs.append(self.load_emg(self.folder_name, error_df))
         self.plot_acce_for_sync_emg(dfs, self.y_axis, self.xlim, self.ylim)
@@ -33,7 +40,10 @@ class AllPlotters(object):
 
         df = pd.read_csv(file('%s/data/acce/%s_acce_%s.csv' % (
             folder_name, folder_name, place)), names=columns)
-        df.time = df.time - df.time[0] - error_df["acce_%s" % place].values
+        if error_df is None:
+            df.time = df.time - df.time[0]
+        else:
+            df.time = df.time - df.time[0] - error_df["acce_%s" % place].values
         df.acce_x = df.acce_x * 1000
         df.acce_y = df.acce_y * 1000
         df.acce_z = df.acce_z * 1000
@@ -54,7 +64,11 @@ class AllPlotters(object):
         for place in places:
             df = pd.read_csv(file('%s/data/acce/%s_acce_%s.csv' % (
                 folder_name, folder_name, place)), names=columns)
-            df.time = df.time - df.time[0] - error_df["acce_%s" % place].values
+            if error_df is None:
+                df.time = df.time - df.time[0]
+            else:
+                df.time = df.time - df.time[0] - error_df[
+                    "acce_%s" % place].values
             df.acce_x = df.acce_x * 1000
             df.acce_y = df.acce_y * 1000
             df.acce_z = df.acce_z * 1000
@@ -68,7 +82,10 @@ class AllPlotters(object):
         ]
         emg_df = pd.read_csv(file('%s/data/emg/%s_emg.csv' % (
             folder_name, folder_name)), skiprows=10, names=columns)
-        emg_df['time'] = emg_df['time'] / 1000 - error_df.emg.values
+        if error_df is None:
+            emg_df['time'] = emg_df['time'] / 1000
+        else:
+            emg_df['time'] = emg_df['time'] / 1000 - error_df.emg.values
         return emg_df
 
     def plot_acce_dfs(self, dfs, y_axis, xlim, ylim):
@@ -88,20 +105,22 @@ class AllPlotters(object):
         x_axis = 'time'
         legends = ["backpack", "emg"]
 
-        for df, legend in zip(dfs, legends):
+        if self.check:
             fig = plt.figure(figsize=[15, 3])
             ax = fig.add_subplot(111)
-            df.plot(
-                x=x_axis, y=y_axis, ax=ax, xlim=xlim, ylim=ylim, legend=False)
-            plt.legend([legend])
-
-        fig = plt.figure(figsize=[15, 3])
-        ax = fig.add_subplot(111)
-
-        for df in dfs:
-            df.plot(
-                x=x_axis, y=y_axis, ax=ax, xlim=xlim, ylim=ylim, legend=False)
-        plt.legend(legends)
+            for df in dfs:
+                df.plot(
+                    x=x_axis, y=y_axis, ax=ax,
+                    xlim=xlim, ylim=ylim, legend=False)
+            plt.legend(legends)
+        else:
+            for df, legend in zip(dfs, legends):
+                fig = plt.figure(figsize=[15, 3])
+                ax = fig.add_subplot(111)
+                df.plot(
+                    x=x_axis, y=y_axis, ax=ax,
+                    xlim=xlim, ylim=ylim, legend=False)
+                plt.legend([legend])
 
         plt.show()
 
@@ -118,11 +137,14 @@ if __name__ == '__main__':
         '--ylim', default=None, help='for plot')
     parser.add_argument(
         '--emg', action="store_true", help='plot for sync of emg')
+    parser.add_argument(
+        '--check', action="store_true", help='use tymesync.csv')
 
     args = parser.parse_args()
 
     document = AllPlotters(
-        args.folder_name, args.y_axis, args.xlim, args.ylim, args.emg)
+        args.folder_name, args.y_axis, args.xlim,
+        args.ylim, args.emg, args.check)
 
     if args.emg:
         document.sync_of_emg_plot()
