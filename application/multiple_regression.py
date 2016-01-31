@@ -14,7 +14,8 @@ from sklearn.metrics import mean_absolute_error
 class Regression(object):
     def __init__(self, test_folder, train_folders):
         self.test_folder = test_folder
-        self.train_folders = train_folders
+        if train_folders is not None:
+            self.train_folders = [str(f) for f in train_folders.split(',')]
         self.sensor_name = "acce_undersheet"
         self.data_col = 'acce_y'
         self.dim = 50
@@ -30,11 +31,14 @@ class Regression(object):
     def regression_var_data(self):
         test_target, test_data, test_time = self.create_dataset(
             self.test_folder, self.degree, self.dim)
-        train_target, train_data, train_time = [self.create_dataset(
-            self.folder, self.degree, self.dim
-        ) for folder in self.train_folders]
-        clf = self.training(
-            np.array(sum(train_target, [])), np.array(sum(train_data, [])))
+        train_target, train_data = np.array([]), np.array([])
+        for folder in self.train_folders:
+            target, data, time = self.create_dataset(
+                folder, self.degree, self.dim)
+            train_target = np.append(train_target, target)
+            train_data = np.append(train_data, data)
+        train_data = train_data.reshape(train_target.shape[0], self.dim)
+        clf = self.training(train_target, train_data)
         prd_target = self.test(clf, test_data)
         self.print_score(test_target, prd_target)
         self.plot_score(test_target, prd_target, test_time)
@@ -80,6 +84,14 @@ class Regression(object):
             folder_name, push_df, error_df, degree)
         data = self.create_data(folder_name, push_df, error_df)
         target, data, time = self.fit_dim(target, data, time, dim)
+        figsize = [20, 5]
+        fig = plt.figure(figsize=figsize)
+        ax1 = fig.add_subplot(211)
+        ax1.plot(time, target)
+        ax2 = fig.add_subplot(212)
+        ax2.plot(time, data[:, -1])
+        plt.title("%s's stress level and p-p value"%folder_name)
+        fig.show()
         return target, data, time
 
     def fit_dim(self, target, data, time, dim):
@@ -113,7 +125,7 @@ class Regression(object):
     def calc_p_p(self, samples):
         data = [[
             sample.time.mean(),
-            min(sample[self.data_col]) - max(sample[self.data_col])
+            max(sample[self.data_col] - min(sample[self.data_col]))
         ] for sample in samples]
         df = pd.DataFrame(data, columns=['time', 'p_p'])
         return df
@@ -265,14 +277,15 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Process task information.')
     parser.add_argument(
-        'test_folder', type=list,
+        'test_folder', type=str,
         help='folder name of the test data ("yymmdd_name")')
     parser.add_argument(
-        'train_folders', type=list, default=None,
-        help='folder name list of the train data (["yymmdd_name", "~~"])')
+        '-train_folders, -t', type=str, default=None, dest="train_folders",
+        help='folder name list of the train data (yymmdd_name, yymmdd_name])')
     args = parser.parse_args()
 
     document = Regression(args.test_folder, args.train_folders)
+
     if args.train_folders is None:
         document.regression_one_data()
     else:
