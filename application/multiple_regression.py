@@ -22,22 +22,26 @@ class Regression(object):
         self.degree = 40
 
     def regression_one_data(self):
-        target, data, time = self.create_dataset(
-            self.test_folder, self.degree, self.dim)
+        dataset = self.create_dataset([self.test_folder])
+        target, data, time = dataset[0]
         prd_target = self.cross_val(target, data)
         self.print_score(target, prd_target)
         self.plot_score(target, prd_target, time)
 
     def regression_var_data(self):
-        test_target, test_data, test_time = self.create_dataset(
-            self.test_folder, self.degree, self.dim)
-        train_target, train_data = np.array([]), np.array([])
-        for folder in self.train_folders:
-            target, data, time = self.create_dataset(
-                folder, self.degree, self.dim)
+        folders = self.train_folders
+        folders.insert(0, self.test_folder)
+        datasets = self.create_dataset(folders)
+        test_target, test_data, test_time = datasets[0]
+        train_target, train_data, train_time = [
+            np.array([]), np.array([]), np.array([])]
+        for ind in xrange(1, len(folders)):
+            target, data, time = datasets[ind]
             train_target = np.append(train_target, target)
             train_data = np.append(train_data, data)
-        train_data = train_data.reshape(train_target.shape[0], self.dim)
+            train_time = np.append(train_time, time)
+        train_data = train_data.reshape(
+            train_target.shape[0], self.dim)
         clf = self.training(train_target, train_data)
         prd_target = self.test(clf, test_data)
         self.print_score(test_target, prd_target)
@@ -77,32 +81,54 @@ class Regression(object):
     def print_score(self, true, predict):
         print "mae : %f" % mean_absolute_error(true, predict)
 
-    def create_dataset(self, folder_name, degree, dim):
-        push_df = self.load_push(folder_name)
-        error_df = self.load_timesync(folder_name)
-        target, time = self.create_target(
-            folder_name, push_df, error_df, degree)
-        data = self.create_data(folder_name, push_df, error_df)
-        target, data, time = self.fit_dim(target, data, time, dim)
+    def create_dataset(self, folders):
+        targets, times, datas, lengths = [
+            np.array([]), np.array([]), np.array([]),
+            np.array([], dtype=np.int)]
+        for ind, folder_name in enumerate(folders):
+            push_df = self.load_push(folder_name)
+            error_df = self.load_timesync(folder_name)
+            target, time = self.create_target(folder_name, push_df, error_df)
+            data = self.create_data(folder_name, push_df, error_df)
+            targets = np.append(targets, target)
+            times = np.append(times, time)
+            datas = np.append(datas, data)
+            lengths = np.append(lengths, len(target))
+            self.plot_stress_and_pp(target, time, data, folder_name)
+        datas = self.norm_data(datas)
+        datasets = self.separete_dataset(lengths, targets, times, datas)
+        return datasets
+
+    def plot_stress_and_pp(self, target, time, data, name):
         figsize = [20, 5]
         fig = plt.figure(figsize=figsize)
+        plt.title("%s's stress level and p-p value" % name)
         ax1 = fig.add_subplot(211)
         ax1.plot(time, target)
         ax2 = fig.add_subplot(212)
-        ax2.plot(time, data[:, -1])
-        plt.title("%s's stress level and p-p value"%folder_name)
+        ax2.plot(time, data)
         fig.show()
+
+    def separete_dataset(self, lengths, targets, times, datas):
+        pre_len = 0
+        datasets = []
+        for length in lengths:
+            target = targets[pre_len: length]
+            time = times[pre_len: length]
+            data = datas[pre_len: length]
+            dataset = self.fit_dim(target, data, time)
+            datasets.append(dataset)
+        return datasets
+
+    def fit_dim(self, target, data, time):
+        data = np.array([data[ind:ind + self.dim] for ind in xrange(
+            len(data[:-self.dim + 1]))])
+        target = target[self.dim - 1:]
+        time = time[self.dim - 1:]
         return target, data, time
 
-    def fit_dim(self, target, data, time, dim):
-        data = np.array([data[ind:ind + dim] for ind in xrange(
-            len(data[:-dim + 1]))])
-        target = target[dim - 1:]
-        time = time[dim - 1:]
-        return target, data, time
-
-    def create_target(self, folder_name, push_df, error_df, degree):
-        bpm_df = self.load_rri(folder_name, error_df, degree)
+    def create_target(self, folder_name, push_df, error_df):
+        bpm_df = self.load_rri(folder_name, error_df)
         samples = self.sampling_labeled_data(bpm_df, push_df)
         sample_df = self.average_bpm(samples)
         sample_df = self.calculate_hrr(sample_df, bpm_df, folder_name)
@@ -114,13 +140,11 @@ class Regression(object):
             folder_name, self.sensor_name, error_df, base_df)
         samples = self.sampling_labeled_data(acce_df, push_df)
         sample_df = self.calc_p_p(samples)
-        norm_sample_df = self.norm_data(sample_df, 'p_p')
-        return np.array(norm_sample_df.p_p)
+        return np.array(sample_df.p_p)
 
-    def norm_data(self, df, col):
-        data = stats.zscore(np.array(df[col]), axis=0)
-        df[col] = pd.Series(data)
-        return df
+    def norm_data(self, data):
+        data = stats.zscore(np.array(data), axis=0)
+        return data
 
     def calc_p_p(self, samples):
         data = [[
@@ -188,7 +212,7 @@ class Regression(object):
             df.foldername == folder_name].ix[:, ('age', 'sex')].values[0]
         return age, sex
 
-    def load_rri(self, folder_name, error_df, degree, sumpling_time=0.01):
+    def load_rri(self, folder_name, error_df, sumpling_time=0.01):
         f = open('%s/data/rri/%s_rri.txt' % (folder_name, folder_name))
         lines = f.readlines()  # 1行毎にファイル終端まで全て読む(改行文字も含まれる)
         f.close()
@@ -219,7 +243,7 @@ class Regression(object):
         columns = ['time', 'RRI']
         data = pd.DataFrame(data, columns=columns)
 
-        data = self.rolling_average(data, degree).dropna()
+        data = self.rolling_average(data, degree=self.degree).dropna()
 
         # 以下で取り除いたデータをスプライン補間によって補う．
         # リサンプリングタイムはsumpling_time秒
