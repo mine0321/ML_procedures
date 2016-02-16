@@ -9,72 +9,43 @@ from scipy import stats
 from sklearn.cross_validation import KFold
 from sklearn import linear_model
 from sklearn.metrics import mean_absolute_error
-import math
-import codecs
+
 
 class Regression(object):
-    def __init__(self, test_folder, dim):
+    def __init__(self, test_folder, train_folders):
         self.test_folder = test_folder
+        if train_folders is not None:
+            self.train_folders = [str(f) for f in train_folders.split(',')]
         self.sensor_name = "acce_undersheet"
-        self.gps_sensor = "acce_coat"
         self.data_col = 'acce_y'
-        self.dim = 100  # int(dim)
+        self.dim = 50
         self.degree = 40
 
-    def regression(self):
-        push_df = self.load_push(self.test_folder)
-        error_df = self.load_timesync(self.test_folder)
-        target, time = self.create_target(self.test_folder, push_df, error_df)
-        data, gps = self.create_data(self.test_folder, push_df, error_df)
-
-        target, data, time, lat, lng = self.fit_dim(
-            self.dim, target, data, time, gps.T[0], gps.T[1])
+    def regression_one_data(self):
+        dataset = self.create_dataset([self.test_folder])
+        target, data, time = dataset[0]
         prd_target = self.cross_val(target, data)
         self.print_score(target, prd_target)
-        self.output_result(target, prd_target, lat, lng)
-        corr = self.print_corr(target, data)
-        return corr
+        self.plot_score(target, prd_target, time)
 
-    def output_result(self, target, prd_target, lat, lng):
-        levels = np.r_[target, prd_target]
-        max_level = levels.max()
-        min_level = levels.min()
-        target = self.cnv_colors(target, max_level, min_level)
-        prd_target = self.cnv_colors(prd_target, max_level, min_level)
-        folder_name = self.test_folder
-        true_df = pd.DataFrame(np.array([target, lat, lng]).T)
-        result_df = pd.DataFrame(np.array([prd_target, lat, lng]).T)
-        true_df.to_csv('%s/data/%s_true.csv' % (
-            folder_name, folder_name), header=None, index=None)
-        result_df.to_csv('%s/data/%s_predict.csv' % (
-            folder_name, folder_name), header=None, index=None)
-
-    def colorscale(self, v):
-        t = math.cos(4 * math.pi * v)
-        c = int(((-t / 2) + 0.5) * 255)
-        if v >= 1.0:
-            return '%02x%02x%02x' % (255, 0, 0)
-        elif v >= 0.75:
-            return '%02x%02x%02x' % (255, c, 0)
-        elif v >= 0.5:
-            return '%02x%02x%02x' % (c, 255, 0)
-        elif v >= 0.25:
-            return '%02x%02x%02x' % (0, 255, c)
-        elif v >= 0:
-            return '%02x%02x%02x' % (0, c, 255)
-        else:
-            return '%02x%02x%02x' % (0, 0, 255)
-
-    def cnv_colors(self, levels, max_level, min_level):
-        levels = (levels - min_level) / (max_level - min_level)
-        return [self.colorscale(level) for level in levels]
-
-    def print_corr(self, target, data):
-        corr = np.corrcoef(np.c_[target, data].T)[1:, 0]
-        corr = corr[-1::-1]
-        dims = np.arange(0, self.dim)
-        print 'corr :{0}'.format(corr)
-        return [dims, corr]
+    def regression_var_data(self):
+        folders = self.train_folders
+        folders.insert(0, self.test_folder)
+        datasets = self.create_dataset(folders)
+        test_target, test_data, test_time = datasets[0]
+        train_target, train_data, train_time = [
+            np.array([]), np.array([]), np.array([])]
+        for ind in xrange(1, len(folders)):
+            target, data, time = datasets[ind]
+            train_target = np.append(train_target, target)
+            train_data = np.append(train_data, data)
+            train_time = np.append(train_time, time)
+        train_data = train_data.reshape(
+            train_target.shape[0], self.dim)
+        clf = self.training(train_target, train_data)
+        prd_target = self.test(clf, test_data)
+        self.print_score(test_target, prd_target)
+        self.plot_score(test_target, prd_target, test_time)
 
     def training(self, target, data):
         clf = linear_model.LinearRegression()
@@ -83,6 +54,20 @@ class Regression(object):
 
     def test(self, clf, data):
         return clf.predict(data)
+
+    def plot_score(self, target, prd_target, time, figsize=[20, 5]):
+        fig1 = plt.figure(figsize=figsize)
+        ax1 = fig1.add_subplot(111)
+        ax1.plot(time, target)
+        ax1.plot(time, prd_target)
+        ax1.legend(['true', 'predict'])
+        fig1.show()
+
+        fig2 = plt.figure(figsize=figsize)
+        ax2 = fig2.add_subplot(111)
+        error = target - prd_target
+        ax2.plot(time, abs(error))
+        fig2.show()
 
     def cross_val(self, target, data, n_folds=10):
         rs = KFold(len(target), n_folds=n_folds, shuffle=True, random_state=0)
@@ -94,18 +79,53 @@ class Regression(object):
         return prd
 
     def print_score(self, true, predict):
-        mae = mean_absolute_error(true, predict)
-        print "mae : %f" % mae
-        return mae
+        print "mae : %f" % mean_absolute_error(true, predict)
 
-    def fit_dim(self, dim, target, data, time, lat, lng):
-        data = np.array([data[ind:ind + dim] for ind in xrange(
-            len(data[: -dim + 1]))])
-        target = target[dim - 1:]
-        time = time[dim - 1:]
-        lat = lat[dim - 1:]
-        lng = lng[dim - 1:]
-        return target, data, time, lat, lng
+    def create_dataset(self, folders):
+        targets, times, datas, lengths = [
+            np.array([]), np.array([]), np.array([]),
+            np.array([], dtype=np.int)]
+        for ind, folder_name in enumerate(folders):
+            push_df = self.load_push(folder_name)
+            error_df = self.load_timesync(folder_name)
+            target, time = self.create_target(folder_name, push_df, error_df)
+            data = self.create_data(folder_name, push_df, error_df)
+            targets = np.append(targets, target)
+            times = np.append(times, time)
+            datas = np.append(datas, data)
+            lengths = np.append(lengths, len(target))
+            self.plot_stress_and_pp(target, time, data, folder_name)
+        datas = self.norm_data(datas)
+        datasets = self.separete_dataset(lengths, targets, times, datas)
+        return datasets
+
+    def plot_stress_and_pp(self, target, time, data, name):
+        figsize = [20, 5]
+        fig = plt.figure(figsize=figsize)
+        plt.title("%s's stress level and p-p value" % name)
+        ax1 = fig.add_subplot(211)
+        ax1.plot(time, target)
+        ax2 = fig.add_subplot(212)
+        ax2.plot(time, data)
+        fig.show()
+
+    def separete_dataset(self, lengths, targets, times, datas):
+        pre_len = 0
+        datasets = []
+        for length in lengths:
+            target = targets[pre_len: length]
+            time = times[pre_len: length]
+            data = datas[pre_len: length]
+            dataset = self.fit_dim(target, data, time)
+            datasets.append(dataset)
+        return datasets
+
+    def fit_dim(self, target, data, time):
+        data = np.array([data[ind:ind + self.dim] for ind in xrange(
+            len(data[:-self.dim + 1]))])
+        target = target[self.dim - 1:]
+        time = time[self.dim - 1:]
+        return target, data, time
 
     def create_target(self, folder_name, push_df, error_df):
         bpm_df = self.load_rri(folder_name, error_df)
@@ -118,25 +138,20 @@ class Regression(object):
         base_df = self.load_basetime(folder_name)
         acce_df = self.load_acce(
             folder_name, self.sensor_name, error_df, base_df)
-        gps_df = self.load_acce(
-            folder_name, self.gps_sensor, error_df, base_df)
-        acce_samples = self.sampling_labeled_data(acce_df, push_df)
-        gps_samples = self.sampling_labeled_data(gps_df, push_df)
-        sample_df = self.calc_p_p(acce_samples, gps_samples)
-        return np.array(sample_df.p_p), np.array(sample_df[['lat', 'lng']])
+        samples = self.sampling_labeled_data(acce_df, push_df)
+        sample_df = self.calc_p_p(samples)
+        return np.array(sample_df.p_p)
 
     def norm_data(self, data):
         data = stats.zscore(np.array(data), axis=0)
         return data
 
-    def calc_p_p(self, acce_samples, gps_samples):
+    def calc_p_p(self, samples):
         data = [[
             sample.time.mean(),
-            max(sample[self.data_col] - min(sample[self.data_col])),
-            gps_samples[ind].lat.mean(),
-            gps_samples[ind].lng.mean()
-        ] for ind, sample in enumerate(acce_samples)]
-        df = pd.DataFrame(data, columns=['time', 'p_p', 'lat', 'lng'])
+            max(sample[self.data_col] - min(sample[self.data_col]))
+        ] for sample in samples]
+        df = pd.DataFrame(data, columns=['time', 'p_p'])
         return df
 
     def average_bpm(self, samples):
@@ -252,7 +267,7 @@ class Regression(object):
     def load_acce(self, folder_name, sensor_name, error_df, base_df):
         columns = [
             'time', 'gyro_x', 'gyro_y', 'gyro_z',
-            'acce_x', 'acce_y', 'acce_z', 'lat', 'lng'
+            'acce_x', 'acce_y', 'acce_z', 'lat', 'long'
         ]
         sub_cols = ['acce_x', 'acce_y', 'acce_z']
 
@@ -283,16 +298,19 @@ class Regression(object):
         return df
 
 if __name__ == '__main__':
-    dim_dict = dict([line.rstrip().split(',') for line in codecs.open(
-        'TargetData.csv', "r", "utf-8")])
-    fig = plt.figure(figsize=[20, 5])
-    ax = fig.add_subplot(111)
+    import argparse
+    parser = argparse.ArgumentParser(description='Process task information.')
+    parser.add_argument(
+        'test_folder', type=str,
+        help='folder name of the test data ("yymmdd_name")')
+    parser.add_argument(
+        '-train_folders, -t', type=str, default=None, dest="train_folders",
+        help='folder name list of the train data (yymmdd_name, yymmdd_name])')
+    args = parser.parse_args()
 
-    for test_folder in dim_dict:
-        print("----- Run %s  ----" % test_folder)
-        dim = dim_dict[test_folder]
-        document = Regression(test_folder, dim)
-        corr = document.regression()
-        ax.plot(corr[0], corr[1])
+    document = Regression(args.test_folder, args.train_folders)
 
-    fig.show()
+    if args.train_folders is None:
+        document.regression_one_data()
+    else:
+        document.regression_var_data()

@@ -95,7 +95,16 @@ def rriTocsv(
             line[1] = float(line[1]) * 1000
             line[0] = float(line[0]) - sync_error
 
-        if 0 <= line[0] <= experiment_time:
+        if experiment_time is None:
+            if 0 <= line[0]:
+                for j, pre_rri in enumerate(rris):
+                    if (pre_rri / min_rate > line[1]) or (
+                            line[1] > pre_rri * max_rate):
+                        break
+                    elif j == 2:
+                        data.append(line)
+        else:
+            if 0 <= line[0] <= experiment_time:
             for j, pre_rri in enumerate(rris):
                 if (pre_rri / min_rate > line[1]) or (
                         line[1] > pre_rri * max_rate):

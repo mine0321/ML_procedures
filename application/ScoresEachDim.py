@@ -10,71 +10,33 @@ from sklearn.cross_validation import KFold
 from sklearn import linear_model
 from sklearn.metrics import mean_absolute_error
 import math
-import codecs
 
 class Regression(object):
-    def __init__(self, test_folder, dim):
+    def __init__(self, test_folder):
         self.test_folder = test_folder
         self.sensor_name = "acce_undersheet"
         self.gps_sensor = "acce_coat"
         self.data_col = 'acce_y'
-        self.dim = 100  # int(dim)
         self.degree = 40
+        self.max_dims = 100
 
     def regression(self):
         push_df = self.load_push(self.test_folder)
         error_df = self.load_timesync(self.test_folder)
-        target, time = self.create_target(self.test_folder, push_df, error_df)
-        data, gps = self.create_data(self.test_folder, push_df, error_df)
-
-        target, data, time, lat, lng = self.fit_dim(
-            self.dim, target, data, time, gps.T[0], gps.T[1])
-        prd_target = self.cross_val(target, data)
-        self.print_score(target, prd_target)
-        self.output_result(target, prd_target, lat, lng)
-        corr = self.print_corr(target, data)
-        return corr
-
-    def output_result(self, target, prd_target, lat, lng):
-        levels = np.r_[target, prd_target]
-        max_level = levels.max()
-        min_level = levels.min()
-        target = self.cnv_colors(target, max_level, min_level)
-        prd_target = self.cnv_colors(prd_target, max_level, min_level)
-        folder_name = self.test_folder
-        true_df = pd.DataFrame(np.array([target, lat, lng]).T)
-        result_df = pd.DataFrame(np.array([prd_target, lat, lng]).T)
-        true_df.to_csv('%s/data/%s_true.csv' % (
-            folder_name, folder_name), header=None, index=None)
-        result_df.to_csv('%s/data/%s_predict.csv' % (
-            folder_name, folder_name), header=None, index=None)
-
-    def colorscale(self, v):
-        t = math.cos(4 * math.pi * v)
-        c = int(((-t / 2) + 0.5) * 255)
-        if v >= 1.0:
-            return '%02x%02x%02x' % (255, 0, 0)
-        elif v >= 0.75:
-            return '%02x%02x%02x' % (255, c, 0)
-        elif v >= 0.5:
-            return '%02x%02x%02x' % (c, 255, 0)
-        elif v >= 0.25:
-            return '%02x%02x%02x' % (0, 255, c)
-        elif v >= 0:
-            return '%02x%02x%02x' % (0, c, 255)
-        else:
-            return '%02x%02x%02x' % (0, 0, 255)
-
-    def cnv_colors(self, levels, max_level, min_level):
-        levels = (levels - min_level) / (max_level - min_level)
-        return [self.colorscale(level) for level in levels]
-
-    def print_corr(self, target, data):
-        corr = np.corrcoef(np.c_[target, data].T)[1:, 0]
-        corr = corr[-1::-1]
-        dims = np.arange(0, self.dim)
-        print 'corr :{0}'.format(corr)
-        return [dims, corr]
+        origin_target, origin_time = self.create_target(
+            self.test_folder, push_df, error_df)
+        origin_data, origin_gps = self.create_data(
+            self.test_folder, push_df, error_df)
+        scores = []
+        for dim in xrange(2, self.max_dims + 1):
+            print("-----  dimension is %d  ----" % dim)
+            target, data, time, lat, lng = self.fit_dim(
+                dim, origin_target, origin_data, origin_time,
+                origin_gps.T[0], origin_gps.T[1])
+            prd_target = self.cross_val(target, data)
+            scores.append([dim, self.print_score(target, prd_target)])
+        scores = np.array(scores).T
+        return scores
 
     def training(self, target, data):
         clf = linear_model.LinearRegression()
@@ -100,7 +62,7 @@ class Regression(object):
 
     def fit_dim(self, dim, target, data, time, lat, lng):
         data = np.array([data[ind:ind + dim] for ind in xrange(
-            len(data[: -dim + 1]))])
+            len(data[:-dim + 1]))])
         target = target[dim - 1:]
         time = time[dim - 1:]
         lat = lat[dim - 1:]
@@ -283,16 +245,14 @@ class Regression(object):
         return df
 
 if __name__ == '__main__':
-    dim_dict = dict([line.rstrip().split(',') for line in codecs.open(
-        'TargetData.csv', "r", "utf-8")])
+
+    folder_list = ['20160116_hoshino', '20160112_araya']
+
     fig = plt.figure(figsize=[20, 5])
     ax = fig.add_subplot(111)
 
-    for test_folder in dim_dict:
-        print("----- Run %s  ----" % test_folder)
-        dim = dim_dict[test_folder]
-        document = Regression(test_folder, dim)
-        corr = document.regression()
-        ax.plot(corr[0], corr[1])
-
+    for folder in folder_list:
+        document = Regression(folder)
+        scores = document.regression()
+        ax.plot(scores[0], scores[1])
     fig.show()
